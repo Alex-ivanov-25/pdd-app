@@ -4,7 +4,7 @@
     "slug": "pdd-app",
     "version": "1.0.0",
     "ios": {
-      "bundleIdentifier": "com.yourname.pdd",
+      "bundleIdentifier": "com.lipiq.pdd",
       "infoPlist": {
         "UIBackgroundModes": ["audio", "fetch"]
       }
@@ -14,6 +14,11 @@
         "photosPermission": "Нужно для чтения скриншотов"
       }],
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d1d1615e-5792-4a2f-8441-86333e4d1ee7"
+      }
+    }
   }
 }
