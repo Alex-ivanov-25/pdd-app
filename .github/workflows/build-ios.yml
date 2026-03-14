@@ -57,16 +57,31 @@ jobs:
 
       - name: Patch xcconfig files
         run: |
-          # Патчим ВСЕ xcconfig файлы во всём ios/Pods
           find ios/Pods -name "*.xcconfig" | while read f; do
             sed -i '' 's/SWIFT_VERSION = 6/SWIFT_VERSION = 5/g' "$f"
             grep -q "SWIFT_VERSION" "$f" || echo "SWIFT_VERSION = 5" >> "$f"
             grep -q "SWIFT_STRICT_CONCURRENCY" "$f" || echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$f"
           done
-          # Дополнительно патчим Protobuf podspec напрямую
-          find ios/Pods -path "*/Protobuf/*.swift" -name "*.swift" | head -3
-          grep -r "SWIFT_VERSION" ios/Pods/Target\ Support\ Files/Protobuf/ 2>/dev/null || echo "Protobuf xcconfig not found in Target Support Files"
-          echo "✅ All xcconfig files patched"
+          echo "✅ xcconfig patched"
+
+      - name: Patch Protobuf Swift files
+        run: |
+          # Смотрим содержимое проблемных файлов
+          echo "=== GPBUnknownField+Additions.swift ==="
+          cat ios/Pods/Protobuf/objectivec/GPBUnknownField+Additions.swift 2>/dev/null || echo "NOT FOUND"
+          echo "=== GPBUnknownFields+Additions.swift ==="
+          cat ios/Pods/Protobuf/objectivec/GPBUnknownFields+Additions.swift 2>/dev/null || echo "NOT FOUND"
+          # Добавляем @preconcurrency к extension чтобы отключить проверки Swift 6
+          for f in \
+            ios/Pods/Protobuf/objectivec/GPBUnknownField+Additions.swift \
+            ios/Pods/Protobuf/objectivec/GPBUnknownFields+Additions.swift; do
+            if [ -f "$f" ]; then
+              sed -i '' 's/^extension /nonisolated extension /g' "$f" || true
+              sed -i '' 's/^public extension /nonisolated public extension /g' "$f" || true
+              echo "Patched: $f"
+              head -5 "$f"
+            fi
+          done
 
       - name: Find workspace
         run: |
