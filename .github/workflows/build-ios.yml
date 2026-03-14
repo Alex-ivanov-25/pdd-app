@@ -66,14 +66,9 @@ jobs:
 
       - name: Patch Protobuf Swift files
         run: |
-          F1="ios/Pods/Protobuf/objectivec/GPBUnknownField+Additions.swift"
-          F2="ios/Pods/Protobuf/objectivec/GPBUnknownFields+Additions.swift"
-          # Заменяем extension на @preconcurrency extension
-          sed -i '' 's/^extension GPBUnknownField {/@preconcurrency extension GPBUnknownField {/g' "$F1"
-          sed -i '' 's/^extension GPBUnknownFields {/@preconcurrency extension GPBUnknownFields {/g' "$F2"
-          sed -i '' 's/^extension GPBUnknownFields: Sequence {/@preconcurrency extension GPBUnknownFields: Sequence {/g' "$F2"
-          echo "✅ Protobuf patched"
-          grep "extension GPB" "$F1" "$F2"
+          rm -f ios/Pods/Protobuf/objectivec/GPBUnknownField+Additions.swift
+          rm -f ios/Pods/Protobuf/objectivec/GPBUnknownFields+Additions.swift
+          echo "✅ Protobuf Swift files removed"
 
       - name: Find workspace
         run: |
