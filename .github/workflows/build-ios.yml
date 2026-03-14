@@ -46,9 +46,9 @@ jobs:
         run: |
           python3 - <<'PYEOF'
           with open("ios/Podfile", "r") as f:
-              lines = f.readlines()
+              content = f.read()
 
-          patch = """\
+          patch = """
             installer.pods_project.targets.each do |target|
               target.build_configurations.each do |config|
                 config.build_settings["SWIFT_VERSION"] = "5"
@@ -58,18 +58,23 @@ jobs:
             end
           """
 
-          # Найти последний "end" и вставить патч перед ним
-          for i in range(len(lines) - 1, -1, -1):
-              if lines[i].strip() == "end":
-                  lines.insert(i, patch)
-                  break
+          # Найти post_install блок и вставить патч внутрь перед его закрывающим end
+          import re
+          # Ищем post_install do |installer| ... end
+          pattern = r'(post_install do \|installer\|)(.*?)(^end$)'
+          def replacer(m):
+              return m.group(1) + m.group(2) + patch + m.group(3)
+          new_content = re.sub(pattern, replacer, content, flags=re.DOTALL|re.MULTILINE)
+
+          if new_content == content:
+              print("WARNING: post_install block not found, appending new block")
+              new_content += "\npost_install do |installer|\n" + patch + "\nend\n"
 
           with open("ios/Podfile", "w") as f:
-              f.writelines(lines)
+              f.write(new_content)
 
-          print("Podfile patched successfully")
-          print("--- Last 25 lines ---")
-          print("".join(lines[-25:]))
+          print("Done. Last 30 lines:")
+          print("\n".join(new_content.splitlines()[-30:]))
           PYEOF
 
       - name: Install CocoaPods
