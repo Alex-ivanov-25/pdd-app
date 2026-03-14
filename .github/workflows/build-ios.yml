@@ -35,6 +35,9 @@ jobs:
 
       - name: Patch Podfile (awk)
         run: |
+          # Добавляем старую версию Protobuf без Swift 6 файлов
+          sed -i '' "s/^  use_expo_modules!/  pod 'Protobuf', '~> 3.27.0'\n  use_expo_modules!/" ios/Podfile
+          # Патчим post_install
           awk '
             /post_install do \|installer\|/ { in_post=1 }
             in_post && /^  end$/ {
@@ -50,7 +53,7 @@ jobs:
             }
             { print }
           ' ios/Podfile > ios/Podfile.tmp && mv ios/Podfile.tmp ios/Podfile
-          tail -20 ios/Podfile
+          tail -25 ios/Podfile
 
       - name: Install CocoaPods
         run: cd ios && pod install
@@ -63,12 +66,6 @@ jobs:
             grep -q "SWIFT_STRICT_CONCURRENCY" "$f" || echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$f"
           done
           echo "✅ xcconfig patched"
-
-      - name: Patch Protobuf Swift files
-        run: |
-          rm -f ios/Pods/Protobuf/objectivec/GPBUnknownField+Additions.swift
-          rm -f ios/Pods/Protobuf/objectivec/GPBUnknownFields+Additions.swift
-          echo "✅ Protobuf Swift files removed"
 
       - name: Find workspace
         run: |
