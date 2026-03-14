@@ -66,22 +66,14 @@ jobs:
 
       - name: Patch Protobuf Swift files
         run: |
-          # Смотрим содержимое проблемных файлов
-          echo "=== GPBUnknownField+Additions.swift ==="
-          cat ios/Pods/Protobuf/objectivec/GPBUnknownField+Additions.swift 2>/dev/null || echo "NOT FOUND"
-          echo "=== GPBUnknownFields+Additions.swift ==="
-          cat ios/Pods/Protobuf/objectivec/GPBUnknownFields+Additions.swift 2>/dev/null || echo "NOT FOUND"
-          # Добавляем @preconcurrency к extension чтобы отключить проверки Swift 6
-          for f in \
-            ios/Pods/Protobuf/objectivec/GPBUnknownField+Additions.swift \
-            ios/Pods/Protobuf/objectivec/GPBUnknownFields+Additions.swift; do
-            if [ -f "$f" ]; then
-              sed -i '' 's/^extension /nonisolated extension /g' "$f" || true
-              sed -i '' 's/^public extension /nonisolated public extension /g' "$f" || true
-              echo "Patched: $f"
-              head -5 "$f"
-            fi
-          done
+          F1="ios/Pods/Protobuf/objectivec/GPBUnknownField+Additions.swift"
+          F2="ios/Pods/Protobuf/objectivec/GPBUnknownFields+Additions.swift"
+          # Заменяем extension на @preconcurrency extension
+          sed -i '' 's/^extension GPBUnknownField {/@preconcurrency extension GPBUnknownField {/g' "$F1"
+          sed -i '' 's/^extension GPBUnknownFields {/@preconcurrency extension GPBUnknownFields {/g' "$F2"
+          sed -i '' 's/^extension GPBUnknownFields: Sequence {/@preconcurrency extension GPBUnknownFields: Sequence {/g' "$F2"
+          echo "✅ Protobuf patched"
+          grep "extension GPB" "$F1" "$F2"
 
       - name: Find workspace
         run: |
