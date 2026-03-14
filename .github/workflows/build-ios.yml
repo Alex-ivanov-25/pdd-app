@@ -44,21 +44,21 @@ jobs:
       - name: Prebuild iOS
         run: npx expo prebuild --platform ios --no-install
 
-      # ─── Патч Podfile: отключаем Swift 6 во всех подах ─────
+      # ─── Патч Podfile: добавляем Swift 5 внутрь существующего post_install ───
       - name: Patch Podfile for Swift 5
         run: |
-          cat >> ios/Podfile << 'EOF'
-
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings['SWIFT_VERSION'] = '5'
-                config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-              end
+          # Вставляем наши настройки в конец существующего post_install блока
+          sed -i '' '/^end$/i\
+            installer.pods_project.targets.each do |target|\
+              target.build_configurations.each do |config|\
+                config.build_settings["SWIFT_VERSION"] = "5"\
+                config.build_settings["SWIFT_STRICT_CONCURRENCY"] = "minimal"\
+                config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "13.0"\
+              end\
             end
-          end
-          EOF
+          ' ios/Podfile
+          echo "--- Podfile tail ---"
+          tail -20 ios/Podfile
 
       - name: Install CocoaPods
         run: |
