@@ -67,7 +67,10 @@ jobs:
             archive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_STRICT_CONCURRENCY=minimal \
+            OTHER_SWIFT_FLAGS="-warn-concurrency -enable-actor-data-race-checks" \
+            SWIFT_VERSION=5
           mkdir -p build/Payload
           cp -r build/app.xcarchive/Products/Applications/*.app build/Payload/
           cd build && zip -r ../app.ipa Payload/
