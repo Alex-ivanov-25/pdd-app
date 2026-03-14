@@ -12,7 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ─── Кеш node_modules ──────────────────────────────────
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
@@ -20,7 +19,6 @@ jobs:
           key: node-${{ hashFiles('package-lock.json') }}
           restore-keys: node-
 
-      # ─── Кеш CocoaPods ─────────────────────────────────────
       - name: Cache CocoaPods
         uses: actions/cache@v4
         with:
@@ -44,21 +42,35 @@ jobs:
       - name: Prebuild iOS
         run: npx expo prebuild --platform ios --no-install
 
-      # ─── Патч Podfile: добавляем Swift 5 внутрь существующего post_install ───
       - name: Patch Podfile for Swift 5
         run: |
-          # Вставляем наши настройки в конец существующего post_install блока
-          sed -i '' '/^end$/i\
-            installer.pods_project.targets.each do |target|\
-              target.build_configurations.each do |config|\
-                config.build_settings["SWIFT_VERSION"] = "5"\
-                config.build_settings["SWIFT_STRICT_CONCURRENCY"] = "minimal"\
-                config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "13.0"\
-              end\
+          python3 - <<'PYEOF'
+          with open("ios/Podfile", "r") as f:
+              lines = f.readlines()
+
+          patch = """\
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings["SWIFT_VERSION"] = "5"
+                config.build_settings["SWIFT_STRICT_CONCURRENCY"] = "minimal"
+                config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "13.0"
+              end
             end
-          ' ios/Podfile
-          echo "--- Podfile tail ---"
-          tail -20 ios/Podfile
+          """
+
+          # Найти последний "end" и вставить патч перед ним
+          for i in range(len(lines) - 1, -1, -1):
+              if lines[i].strip() == "end":
+                  lines.insert(i, patch)
+                  break
+
+          with open("ios/Podfile", "w") as f:
+              f.writelines(lines)
+
+          print("Podfile patched successfully")
+          print("--- Last 25 lines ---")
+          print("".join(lines[-25:]))
+          PYEOF
 
       - name: Install CocoaPods
         run: |
@@ -92,15 +104,10 @@ jobs:
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             | xcpretty --color || true
 
-          # Проверяем что архив создался
-          ls -la build/
-          ls -la build/app.xcarchive/Products/Applications/ || echo "No .app found"
-
-          # Упаковываем в .ipa
           mkdir -p build/Payload
           cp -r build/app.xcarchive/Products/Applications/*.app build/Payload/
           cd build && zip -r ../app.ipa Payload/
-          echo "IPA size: $(du -sh ../app.ipa)"
+          echo "IPA ready: $(du -sh ../app.ipa)"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
