@@ -8,9 +8,11 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+
     steps:
       - uses: actions/checkout@v4
 
+      # ─── Кеш node_modules ──────────────────────────────────
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
@@ -18,6 +20,7 @@ jobs:
           key: node-${{ hashFiles('package-lock.json') }}
           restore-keys: node-
 
+      # ─── Кеш CocoaPods ─────────────────────────────────────
       - name: Cache CocoaPods
         uses: actions/cache@v4
         with:
@@ -40,6 +43,22 @@ jobs:
 
       - name: Prebuild iOS
         run: npx expo prebuild --platform ios --no-install
+
+      # ─── Патч Podfile: отключаем Swift 6 во всех подах ─────
+      - name: Patch Podfile for Swift 5
+        run: |
+          cat >> ios/Podfile << 'EOF'
+
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['SWIFT_VERSION'] = '5'
+                config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+              end
+            end
+          end
+          EOF
 
       - name: Install CocoaPods
         run: |
@@ -68,12 +87,20 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            SWIFT_VERSION=5 \
             SWIFT_STRICT_CONCURRENCY=minimal \
-            OTHER_SWIFT_FLAGS="-warn-concurrency -enable-actor-data-race-checks" \
-            SWIFT_VERSION=5
+            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            | xcpretty --color || true
+
+          # Проверяем что архив создался
+          ls -la build/
+          ls -la build/app.xcarchive/Products/Applications/ || echo "No .app found"
+
+          # Упаковываем в .ipa
           mkdir -p build/Payload
           cp -r build/app.xcarchive/Products/Applications/*.app build/Payload/
           cd build && zip -r ../app.ipa Payload/
+          echo "IPA size: $(du -sh ../app.ipa)"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
