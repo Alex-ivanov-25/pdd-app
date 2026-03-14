@@ -33,33 +33,28 @@ jobs:
       - name: Prebuild iOS
         run: npx expo prebuild --platform ios --no-install
 
-      - name: Patch Podfile (Ruby)
+      - name: Show Podfile
+        run: cat ios/Podfile
+
+      - name: Patch Podfile (awk)
         run: |
-          ruby << 'RUBYEOF'
-          content = File.read('ios/Podfile')
-          patch = <<~PATCH
-
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings['SWIFT_VERSION'] = '5'
-                config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-              end
-            end
-          PATCH
-
-          if content.include?('post_install do |installer|')
-            # Вставляем патч перед последним 'end' в post_install блоке
-            idx = content.rindex(/^end/)
-            content.insert(idx, patch)
-          else
-            content += "\npost_install do |installer|\n#{patch}\nend\n"
-          end
-
-          File.write('ios/Podfile', content)
-          puts "✅ Podfile patched"
-          puts content.lines.last(25).join
-          RUBYEOF
+          # Вставляем наш код прямо перед строкой 'end' внутри post_install
+          awk '
+            /post_install do \|installer\|/ { in_block=1 }
+            in_block && /^end/ {
+              print "  installer.pods_project.targets.each do |target|"
+              print "    target.build_configurations.each do |config|"
+              print "      config.build_settings[\"SWIFT_VERSION\"] = \"5\""
+              print "      config.build_settings[\"SWIFT_STRICT_CONCURRENCY\"] = \"minimal\""
+              print "      config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"13.0\""
+              print "    end"
+              print "  end"
+              in_block=0
+            }
+            { print }
+          ' ios/Podfile > ios/Podfile.tmp && mv ios/Podfile.tmp ios/Podfile
+          echo "--- Patched Podfile (last 30 lines) ---"
+          tail -30 ios/Podfile
 
       - name: Install CocoaPods
         run: cd ios && pod install
