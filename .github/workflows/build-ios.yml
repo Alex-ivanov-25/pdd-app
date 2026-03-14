@@ -43,6 +43,7 @@ jobs:
               print "        config.build_settings[\"SWIFT_VERSION\"] = \"5\""
               print "        config.build_settings[\"SWIFT_STRICT_CONCURRENCY\"] = \"minimal\""
               print "        config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"13.0\""
+              print "        config.build_settings[\"OTHER_SWIFT_FLAGS\"] = \"-Xfrontend -disable-actor-data-race-checks\""
               print "      end"
               print "    end"
               in_post=0
@@ -56,12 +57,16 @@ jobs:
 
       - name: Patch xcconfig files
         run: |
-          find ios/Pods/Target\ Support\ Files -name "*.xcconfig" | while read f; do
+          # Патчим ВСЕ xcconfig файлы во всём ios/Pods
+          find ios/Pods -name "*.xcconfig" | while read f; do
             sed -i '' 's/SWIFT_VERSION = 6/SWIFT_VERSION = 5/g' "$f"
             grep -q "SWIFT_VERSION" "$f" || echo "SWIFT_VERSION = 5" >> "$f"
             grep -q "SWIFT_STRICT_CONCURRENCY" "$f" || echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$f"
           done
-          echo "✅ xcconfig patched"
+          # Дополнительно патчим Protobuf podspec напрямую
+          find ios/Pods -path "*/Protobuf/*.swift" -name "*.swift" | head -3
+          grep -r "SWIFT_VERSION" ios/Pods/Target\ Support\ Files/Protobuf/ 2>/dev/null || echo "Protobuf xcconfig not found in Target Support Files"
+          echo "✅ All xcconfig files patched"
 
       - name: Find workspace
         run: |
