@@ -46,26 +46,35 @@ jobs:
           cd ios
           pod install
 
+      - name: Find workspace and scheme
+        run: |
+          cd ios
+          WORKSPACE=$(find . -name "*.xcworkspace" -maxdepth 1 | head -1 | xargs basename)
+          SCHEME=$(echo $WORKSPACE | sed 's/.xcworkspace//')
+          echo "WORKSPACE=$WORKSPACE" >> $GITHUB_ENV
+          echo "SCHEME=$SCHEME" >> $GITHUB_ENV
+          echo "Found: $WORKSPACE / $SCHEME"
+
       - name: Build IPA
         run: |
           cd ios
           xcodebuild \
-            -workspace pddapp.xcworkspace \
-            -scheme pddapp \
+            -workspace ${{ env.WORKSPACE }} \
+            -scheme ${{ env.SCHEME }} \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath $PWD/build/pddapp.xcarchive \
+            -archivePath $PWD/build/app.xcarchive \
             archive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
           mkdir -p build/Payload
-          cp -r build/pddapp.xcarchive/Products/Applications/pddapp.app build/Payload/
-          cd build && zip -r ../pddapp.ipa Payload/
+          cp -r build/app.xcarchive/Products/Applications/*.app build/Payload/
+          cd build && zip -r ../app.ipa Payload/
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: pdd-ipa
-          path: ios/pddapp.ipa
+          path: ios/app.ipa
           retention-days: 7
