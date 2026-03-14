@@ -50,8 +50,11 @@ export default function App() {
       playsInSilentModeIOS:    true,
       allowsRecordingIOS:      false,
     });
+    // Минимальный валидный WAV (44 байта заголовок + 1 сэмпл тишины)
+    const silentWav =
+      'UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
     const { sound } = await Audio.Sound.createAsync(
-      require('./assets/silence.mp3'),
+      { uri: `data:audio/wav;base64,${silentWav}` },
       { isLooping: true, volume: 0.01 }
     );
     soundRef.current = sound;
