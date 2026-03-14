@@ -33,12 +33,8 @@ jobs:
       - name: Prebuild iOS
         run: npx expo prebuild --platform ios --no-install
 
-      - name: Show Podfile
-        run: cat ios/Podfile
-
       - name: Patch Podfile (awk)
         run: |
-          # post_install заканчивается на '  end' (с двумя пробелами, внутри target блока)
           awk '
             /post_install do \|installer\|/ { in_post=1 }
             in_post && /^  end$/ {
@@ -53,30 +49,21 @@ jobs:
             }
             { print }
           ' ios/Podfile > ios/Podfile.tmp && mv ios/Podfile.tmp ios/Podfile
-          echo "--- Patched Podfile (last 20 lines) ---"
           tail -20 ios/Podfile
 
       - name: Install CocoaPods
         run: cd ios && pod install
 
-      - name: Patch xcconfig files (force Swift 5)
+      - name: Patch xcconfig files
         run: |
-          # Патчим все xcconfig файлы в Pods
           find ios/Pods/Target\ Support\ Files -name "*.xcconfig" | while read f; do
-            # Убираем SWIFT_VERSION если там стоит 6
             sed -i '' 's/SWIFT_VERSION = 6/SWIFT_VERSION = 5/g' "$f"
-            # Добавляем если нет совсем
-            if ! grep -q "SWIFT_VERSION" "$f"; then
-              echo "SWIFT_VERSION = 5" >> "$f"
-            fi
-            # Отключаем строгую конкурентность
-            if ! grep -q "SWIFT_STRICT_CONCURRENCY" "$f"; then
-              echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$f"
-            fi
+            grep -q "SWIFT_VERSION" "$f" || echo "SWIFT_VERSION = 5" >> "$f"
+            grep -q "SWIFT_STRICT_CONCURRENCY" "$f" || echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$f"
           done
-          echo "✅ xcconfig files patched"
-          # Проверяем ExpoModulesCore
-          grep -r "SWIFT_VERSION" ios/Pods/Target\ Support\ Files/ExpoModulesCore/ || echo "not found"
+          echo "✅ xcconfig patched"
+
+      - name: Find workspace
         run: |
           cd ios
           WORKSPACE=$(find . -name "*.xcworkspace" -maxdepth 1 | head -1 | xargs basename)
