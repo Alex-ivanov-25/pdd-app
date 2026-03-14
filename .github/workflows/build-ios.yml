@@ -7,25 +7,99 @@ on:
 
 jobs:
   build:
-    name: Build iOS
-    runs-on: ubuntu-latest   # EAS строит в облаке, локальная ОС не важна
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-${{ hashFiles('package-lock.json') }}
+          restore-keys: node-
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
-      - name: Setup Expo and EAS
-        uses: expo/expo-github-action@v8
+      - name: Install Expo CLI
+        run: npm install -g expo-cli
+
+      - name: Prebuild iOS
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Patch Podfile (Ruby)
+        run: |
+          ruby << 'RUBYEOF'
+          content = File.read('ios/Podfile')
+          patch = <<~PATCH
+
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['SWIFT_VERSION'] = '5'
+                config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+              end
+            end
+          PATCH
+
+          if content.include?('post_install do |installer|')
+            # Вставляем патч перед последним 'end' в post_install блоке
+            idx = content.rindex(/^end/)
+            content.insert(idx, patch)
+          else
+            content += "\npost_install do |installer|\n#{patch}\nend\n"
+          end
+
+          File.write('ios/Podfile', content)
+          puts "✅ Podfile patched"
+          puts content.lines.last(25).join
+          RUBYEOF
+
+      - name: Install CocoaPods
+        run: cd ios && pod install
+
+      - name: Find workspace
+        run: |
+          cd ios
+          WORKSPACE=$(find . -name "*.xcworkspace" -maxdepth 1 | head -1 | xargs basename)
+          SCHEME=$(echo $WORKSPACE | sed 's/.xcworkspace//')
+          echo "WORKSPACE=$WORKSPACE" >> $GITHUB_ENV
+          echo "SCHEME=$SCHEME" >> $GITHUB_ENV
+          echo "✅ Found: $WORKSPACE"
+
+      - name: Build IPA
+        run: |
+          cd ios
+          set -o pipefail
+          xcodebuild \
+            -workspace ${{ env.WORKSPACE }} \
+            -scheme ${{ env.SCHEME }} \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath $PWD/build/app.xcarchive \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_VERSION=5 \
+            SWIFT_STRICT_CONCURRENCY=minimal \
+            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            2>&1 | tail -50
+
+          mkdir -p build/Payload
+          cp -r build/app.xcarchive/Products/Applications/*.app build/Payload/
+          cd build && zip -r ../app.ipa Payload/
+          echo "✅ IPA: $(du -sh ../app.ipa)"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Build iOS on EAS
-        run: eas build --platform ios --profile development --non-interactive --no-wait
+          name: pdd-ipa
+          path: ios/app.ipa
+          retention-days: 7
