@@ -59,7 +59,24 @@ jobs:
       - name: Install CocoaPods
         run: cd ios && pod install
 
-      - name: Find workspace
+      - name: Patch xcconfig files (force Swift 5)
+        run: |
+          # Патчим все xcconfig файлы в Pods
+          find ios/Pods/Target\ Support\ Files -name "*.xcconfig" | while read f; do
+            # Убираем SWIFT_VERSION если там стоит 6
+            sed -i '' 's/SWIFT_VERSION = 6/SWIFT_VERSION = 5/g' "$f"
+            # Добавляем если нет совсем
+            if ! grep -q "SWIFT_VERSION" "$f"; then
+              echo "SWIFT_VERSION = 5" >> "$f"
+            fi
+            # Отключаем строгую конкурентность
+            if ! grep -q "SWIFT_STRICT_CONCURRENCY" "$f"; then
+              echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$f"
+            fi
+          done
+          echo "✅ xcconfig files patched"
+          # Проверяем ExpoModulesCore
+          grep -r "SWIFT_VERSION" ios/Pods/Target\ Support\ Files/ExpoModulesCore/ || echo "not found"
         run: |
           cd ios
           WORKSPACE=$(find . -name "*.xcworkspace" -maxdepth 1 | head -1 | xargs basename)
@@ -85,6 +102,7 @@ jobs:
             SWIFT_VERSION=5 \
             SWIFT_STRICT_CONCURRENCY=minimal \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            OTHER_SWIFT_FLAGS="-Xfrontend -disable-actor-data-race-checks" \
             2>&1 | tail -50
 
           mkdir -p build/Payload
