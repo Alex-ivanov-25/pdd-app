@@ -64,6 +64,8 @@ jobs:
 
       - name: Stub Protobuf Swift 6 files
         run: |
+          chmod +w ios/Pods/Protobuf/objectivec/GPBUnknownField+Additions.swift
+          chmod +w ios/Pods/Protobuf/objectivec/GPBUnknownFields+Additions.swift
           echo "// stub" > ios/Pods/Protobuf/objectivec/GPBUnknownField+Additions.swift
           echo "// stub" > ios/Pods/Protobuf/objectivec/GPBUnknownFields+Additions.swift
           echo "✅ Protobuf stubs done"
