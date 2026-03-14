@@ -4,15 +4,21 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
     "expo": "~55.0.6",
+    "expo-av": "^16.0.8",
+    "expo-dev-client": "~55.0.16",
+    "expo-file-system": "~55.0.10",
+    "expo-media-library": "~55.0.9",
+    "expo-notifications": "~55.0.12",
     "expo-status-bar": "~55.0.4",
     "react": "19.2.0",
-    "react-native": "0.83.2"
+    "react-native": "0.83.2",
+    "react-native-mlkit-ocr": "^0.3.0"
   },
   "private": true
 }
