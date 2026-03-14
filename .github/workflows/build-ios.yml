@@ -7,116 +7,25 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    name: Build iOS
+    runs-on: ubuntu-latest   # EAS строит в облаке, локальная ОС не важна
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-${{ hashFiles('package-lock.json') }}
-          restore-keys: node-
-
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        with:
-          path: |
-            ios/Pods
-            ~/.cocoapods
-          key: pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: pods-
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Install Expo CLI
-        run: npm install -g expo-cli
-
-      - name: Prebuild iOS
-        run: npx expo prebuild --platform ios --no-install
-
-      - name: Patch Podfile for Swift 5
-        run: |
-          python3 - <<'PYEOF'
-          with open("ios/Podfile", "r") as f:
-              content = f.read()
-
-          patch = """
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings["SWIFT_VERSION"] = "5"
-                config.build_settings["SWIFT_STRICT_CONCURRENCY"] = "minimal"
-                config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "13.0"
-              end
-            end
-          """
-
-          # Найти post_install блок и вставить патч внутрь перед его закрывающим end
-          import re
-          # Ищем post_install do |installer| ... end
-          pattern = r'(post_install do \|installer\|)(.*?)(^end$)'
-          def replacer(m):
-              return m.group(1) + m.group(2) + patch + m.group(3)
-          new_content = re.sub(pattern, replacer, content, flags=re.DOTALL|re.MULTILINE)
-
-          if new_content == content:
-              print("WARNING: post_install block not found, appending new block")
-              new_content += "\npost_install do |installer|\n" + patch + "\nend\n"
-
-          with open("ios/Podfile", "w") as f:
-              f.write(new_content)
-
-          print("Done. Last 30 lines:")
-          print("\n".join(new_content.splitlines()[-30:]))
-          PYEOF
-
-      - name: Install CocoaPods
-        run: |
-          cd ios
-          pod install
-
-      - name: Find workspace and scheme
-        run: |
-          cd ios
-          WORKSPACE=$(find . -name "*.xcworkspace" -maxdepth 1 | head -1 | xargs basename)
-          SCHEME=$(echo $WORKSPACE | sed 's/.xcworkspace//')
-          echo "WORKSPACE=$WORKSPACE" >> $GITHUB_ENV
-          echo "SCHEME=$SCHEME" >> $GITHUB_ENV
-          echo "Found: $WORKSPACE / $SCHEME"
-
-      - name: Build IPA
-        run: |
-          cd ios
-          xcodebuild \
-            -workspace ${{ env.WORKSPACE }} \
-            -scheme ${{ env.SCHEME }} \
-            -configuration Release \
-            -sdk iphoneos \
-            -archivePath $PWD/build/app.xcarchive \
-            archive \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            SWIFT_VERSION=5 \
-            SWIFT_STRICT_CONCURRENCY=minimal \
-            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
-            | xcpretty --color || true
-
-          mkdir -p build/Payload
-          cp -r build/app.xcarchive/Products/Applications/*.app build/Payload/
-          cd build && zip -r ../app.ipa Payload/
-          echo "IPA ready: $(du -sh ../app.ipa)"
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
         with:
-          name: pdd-ipa
-          path: ios/app.ipa
-          retention-days: 7
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build iOS on EAS
+        run: eas build --platform ios --profile development --non-interactive --no-wait
